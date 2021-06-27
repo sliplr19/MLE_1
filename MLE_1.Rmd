@@ -1,0 +1,73 @@
+---
+title: "MLE HW 1"
+author: "Lindley Slipetz"
+date: "6/27/2021"
+output: pdf_document
+---
+
+Before jumping into code, I just want let you know that I'm not taking this course for a grade. Now let's load the data. There seems to be an issue with loading dta data from this particular version of STATA with the foreign package, so I'm going to use haven instead.
+
+```{r load_data}
+library(haven)
+Normalxy<-read_dta("C:\\Users\\Owner\\Documents\\ICPSR\\MLE\\HW 1\\normalxy.dta")
+```
+
+Here's the summary of the data.
+
+```{r sum}
+summary(Normalxy)
+```
+
+# Estimate the regression model
+
+```{r reg}
+ols <- lm(Normalxy$y ~ Normalxy$x)
+summary(ols)
+```
+
+# Estimate a likelihood function using a normal distribution
+
+```{r like}
+#install.packages("maxLik")
+library(maxLik)
+ml.in <- function(par, x=Normalxy$x, y=Normalxy$y){
+n <- length(y)
+xb <- par[1] + par[2]*x
+e <- y-xb
+sigma <- sqrt(sum(e^2)/n)
+sum(-(1/2)*log(sigma^2) - (1/(2*sigma^2))*((y-xb)^2))
+}
+ml.out<-maxBFGS(ml.in, start=c(1,1), x=Normalxy$x, y=Normalxy$y)
+summary(ml.out)
+```
+
+# Hessian
+
+```{r hessian}
+ml.out$hessian
+```
+
+# Calculate SE’s from Hessian
+
+```{r SE_h}
+ml.se <- sqrt(diag(solve(-ml.out$hessian)))
+ml.se
+```
+
+# Calculate SE’s from VCOV
+```{r SE_vcov}
+ml.se.vcov <- sqrt(diag(ml.out$vcov))
+ml.se.vcov
+```
+# Table of results
+
+```{r table}
+res <-matrix(NA, nrow = 5, ncol = 2)
+res[, 1] <-c(format(coef(ols)[1], digits = 3),paste0("(",format(sqrt(diag(vcov(ols)))[1], digits = 3), ")"),format(coef(ols)[2], digits = 3),paste0("(",format(sqrt(diag(vcov(ols)))[2], digits = 3), ")"),length(ols$residuals))
+res[, 2] <- c(format(ml.out$estimate[1], digits = 3), paste0("(", format(ml.se[1], digits = 3), ")"), format(ml.out$estimate[2], digits = 3), paste0("(",format(ml.se[2], digits = 3), ")"), length(ols$residuals))
+rownames(res) <- c("Intercept", "", "x", "", "N")
+colnames(res) <-c("OLS", "MLE")
+res
+```
+
+When rounded to three significant figures, the coefficient estimates are the same for OLS and MLE. The intercept is 5.32 and the x-coefficient is 0.299. They do differ in standard error, meaning that the OLS data are slightly further from the regression line than the MLE estimates. Thus, we say that the MLE model has a better fit.
